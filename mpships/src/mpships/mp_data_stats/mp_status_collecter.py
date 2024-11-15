@@ -9,7 +9,7 @@ if not os.path.exists('./output/elemental'):
     os.makedirs('./output/elemental')
 
 
-API_KEY = "HPnhjtiVgcMGwniGlFFtr877nVA7skf6" # replace to your MP API key
+API_KEY = "API_KEY" # replace to your MP API key
 
 api_list = ['absorption', 'bonds', 'dielectric', 'elasticity', 
             'insertion_electrodes', 'electronic_structure', 'electronic_structure_bandstructure', 
