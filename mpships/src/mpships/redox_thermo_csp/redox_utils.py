@@ -14,7 +14,9 @@ from scipy.constants import pi, R
 from scipy.optimize import brentq
 from scipy.integrate import quad
 from mp_web.core.utils import get_rester
+
 mpr = get_rester()
+
 
 def remove_comp_one(compstr):
     compspl = split_comp(compstr=compstr)
@@ -36,7 +38,7 @@ def add_comp_one(compstr):
     :return:         compositon with stoichiometries of 1 added
     """
     sample = re.sub(r"([A-Z])", r" \1", compstr).split()
-    sample = [''.join(g) for _, g in groupby(str(sample), str.isalpha)]
+    sample = ["".join(g) for _, g in groupby(str(sample), str.isalpha)]
     samp_new = ""
     for k in range(len(sample)):
         spl_samp = re.sub(r"([A-Z])", r" \1", sample[k]).split()
@@ -51,17 +53,29 @@ def add_comp_one(compstr):
 def rootfind(a, b, args, funciso_here):
     solutioniso = 0
     try:
-        solutioniso = brentq(funciso_here, 0.01, 0.49, args=args) # works for most cases
-    except ValueError: # starting values a,b for cases where 0.01/0.49 are not sign changing
+        solutioniso = brentq(
+            funciso_here, 0.01, 0.49, args=args
+        )  # works for most cases
+    except (
+        ValueError
+    ):  # starting values a,b for cases where 0.01/0.49 are not sign changing
         try:
             solutioniso = brentq(funciso_here, a, b, args=args)
         except ValueError:
-            solutioniso = None # if no solution can be found
+            solutioniso = None  # if no solution can be found
     return solutioniso
 
 
-def get_energy_data(en_dat, process_type="Air Separation", t_ox=500, t_red=1000, p_ox=1e-6, p_red=0.21,
-                    data_source="Theo", enth_steps=20):
+def get_energy_data(
+    en_dat,
+    process_type="Air Separation",
+    t_ox=500,
+    t_red=1000,
+    p_ox=1e-6,
+    p_red=0.21,
+    data_source="Theo",
+    enth_steps=20,
+):
     # generate database ID
     # the variable "celsius" is not included as it is always True
     # for now we do not intend to offer a user input in Kelvin
@@ -83,51 +97,75 @@ def get_energy_data(en_dat, process_type="Air Separation", t_ox=500, t_red=1000,
 def s_th_o(temp):
     # constants: Chase, NIST-JANAF Thermochemistry tables, Fourth Edition, 1998
     if temp < 700:
-        shomdat = [31.32234, -20.23531, 57.86644, -36.50624, -0.007374, -8.903471, 246.7945]
+        shomdat = [
+            31.32234,
+            -20.23531,
+            57.86644,
+            -36.50624,
+            -0.007374,
+            -8.903471,
+            246.7945,
+        ]
     elif temp < 2000:
-        shomdat = [30.03235, 8.772972, -3.988133, 0.788313, -0.741599, -11.32468, 236.1663]
+        shomdat = [
+            30.03235,
+            8.772972,
+            -3.988133,
+            0.788313,
+            -0.741599,
+            -11.32468,
+            236.1663,
+        ]
     else:
-        shomdat = [20.91111, 10.72071, -2.020498, 0.146449, 9.245722, 5.337651, 237.6185]
-    temp_frac = temp / 1000.
+        shomdat = [
+            20.91111,
+            10.72071,
+            -2.020498,
+            0.146449,
+            9.245722,
+            5.337651,
+            237.6185,
+        ]
+    temp_frac = temp / 1000.0
     szero = shomdat[0] * np.log(temp_frac)
     szero += shomdat[1] * temp_frac
     szero += 0.5 * shomdat[2] * temp_frac**2
-    szero += shomdat[3]/3. * temp_frac**3
+    szero += shomdat[3] / 3.0 * temp_frac**3
     szero -= shomdat[4] / (2 * temp_frac**2)
     szero += shomdat[6]
     return 0.5 * szero
 
 
 def dh_ds(delta, s_th, p):
-    d_delta = delta - p['delta_0']
-    dh_pars = [p['fit_param_enth'][c] for c in 'abcd']
-    dh = enth_arctan(d_delta, *(dh_pars)) * 1000.
-    ds_pars = [p['fit_par_ent'][c] for c in 'abc']
+    d_delta = delta - p["delta_0"]
+    dh_pars = [p["fit_param_enth"][c] for c in "abcd"]
+    dh = enth_arctan(d_delta, *(dh_pars)) * 1000.0
+    ds_pars = [p["fit_par_ent"][c] for c in "abc"]
 
     # distinguish two differnt entropy fits
-    fit_type = p['fit_type_entr']
+    fit_type = p["fit_type_entr"]
     if fit_type == "Solid_Solution":
-        ds_pars.append(p['act_mat'])
-        ds_pars.append([p['fit_param_fe'][c] for c in 'abcd'])
-        ds = entr_mixed(delta-p['fit_par_ent']['c'], *ds_pars)
+        ds_pars.append(p["act_mat"])
+        ds_pars.append([p["fit_param_fe"][c] for c in "abcd"])
+        ds = entr_mixed(delta - p["fit_par_ent"]["c"], *ds_pars)
     else:
         ds_pars.append(s_th)
-        ds = entr_dilute_spec(delta-p['fit_par_ent']['c'], *ds_pars)
+        ds = entr_dilute_spec(delta - p["fit_par_ent"]["c"], *ds_pars)
     return dh, ds
 
 
 def funciso(delta, iso, x, p, s_th):
     dh, ds = dh_ds(delta, s_th, p)
-    return dh - x*ds + R*iso*x/2
+    return dh - x * ds + R * iso * x / 2
 
 
 def isobar_line_elling(iso, x):
-    return -R*iso*x/2
+    return -R * iso * x / 2
 
 
 def funciso_redox(po2, delta, x, p, s_th):
     dh, ds = dh_ds(delta, s_th, p)
-    return dh - x*ds + R*po2*x/2
+    return dh - x * ds + R * po2 * x / 2
 
 
 def enth_arctan(x, dh_max, dh_min, t, s):
@@ -147,7 +185,11 @@ def entr_fe(x, fit_param_fe):
     :param x:               absolute delta
     :return:                dS of SrFeOx at delta = x with delta_0 accounted for
     """
-    return fit_param_fe[0]/2 + fit_param_fe[1] + (2*fit_param_fe[2]*R * (np.log(0.5-x) - np.log(x)))
+    return (
+        fit_param_fe[0] / 2
+        + fit_param_fe[1]
+        + (2 * fit_param_fe[2] * R * (np.log(0.5 - x) - np.log(x)))
+    )
 
 
 def entr_mixed(x, s, shift, delta_0, act_s1, fit_param_fe):
@@ -162,8 +204,12 @@ def entr_mixed(x, s, shift, delta_0, act_s1, fit_param_fe):
     """
     if type(act_s1) == list:
         act_s1 = float(act_s1[-1])
-    efe = entr_fe(x+delta_0, fit_param_fe)
-    return ((act_s1*efe)/pi) * (np.arctan((x-delta_0)*s)+pi/2) + (1-act_s1)*efe + shift
+    efe = entr_fe(x + delta_0, fit_param_fe)
+    return (
+        ((act_s1 * efe) / pi) * (np.arctan((x - delta_0) * s) + pi / 2)
+        + (1 - act_s1) * efe
+        + shift
+    )
 
 
 def entr_dilute_spec(x, s_v, a, delta_0, s_th_o):
@@ -176,21 +222,37 @@ def entr_dilute_spec(x, s_v, a, delta_0, s_th_o):
     Delta = delta_0 + Delta_delta
     :return:        fit function based on the model in Bulfin et. al., doi: 10.1039/C7TA00822H
     """
-    return s_th_o + s_v + (2 * a * R * (np.log(0.5 - (x + delta_0)) - np.log(x + delta_0)))
+    return (
+        s_th_o + s_v + (2 * a * R * (np.log(0.5 - (x + delta_0)) - np.log(x + delta_0)))
+    )
 
 
 def funciso_theo(delta, iso, x, p, t_d_perov, t_d_brownm, dh_min, dh_max, act):
     dh = d_h_num_dev_calc(delta=delta, dh_1=dh_min, dh_2=dh_max, temp=x, act=act)
-    ds = d_s_fundamental(delta=delta, dh_1=dh_min, dh_2=dh_max, temp=x,
-    act=act, t_d_perov=t_d_perov, t_d_brownm=t_d_brownm)
-    return dh - x*ds + R*iso*x/2
+    ds = d_s_fundamental(
+        delta=delta,
+        dh_1=dh_min,
+        dh_2=dh_max,
+        temp=x,
+        act=act,
+        t_d_perov=t_d_perov,
+        t_d_brownm=t_d_brownm,
+    )
+    return dh - x * ds + R * iso * x / 2
 
 
 def funciso_redox_theo(po2, delta, x, p, t_d_perov, t_d_brownm, dh_min, dh_max, act):
     dh = d_h_num_dev_calc(delta=delta, dh_1=dh_min, dh_2=dh_max, temp=x, act=act)
-    ds = d_s_fundamental(delta=delta, dh_1=dh_min, dh_2=dh_max, temp=x,
-    act=act, t_d_perov=t_d_perov, t_d_brownm=t_d_brownm)
-    return dh - x*ds + R*po2*x/2
+    ds = d_s_fundamental(
+        delta=delta,
+        dh_1=dh_min,
+        dh_2=dh_max,
+        temp=x,
+        act=act,
+        t_d_perov=t_d_perov,
+        t_d_brownm=t_d_brownm,
+    )
+    return dh - x * ds + R * po2 * x / 2
 
 
 def d_h_num_dev_calc(delta, dh_1, dh_2, temp, act):
@@ -203,9 +265,10 @@ def d_h_num_dev_calc(delta, dh_1, dh_2, temp, act):
     :param temp:    temperature in K
     :return:        enthalpy change dH
     """
-    return -((0.5 * d_h_num_dev_0(delta, dh_1, dh_2, temp, act)) - (
-        0.5 * d_h_num_dev_1(delta, dh_1, dh_2, temp, act))) / (
-        (1 / (R * temp)) - (1 / (R * (temp + 0.01))))
+    return -(
+        (0.5 * d_h_num_dev_0(delta, dh_1, dh_2, temp, act))
+        - (0.5 * d_h_num_dev_1(delta, dh_1, dh_2, temp, act))
+    ) / ((1 / (R * temp)) - (1 / (R * (temp + 0.01))))
 
 
 def d_h_num_dev_0(delta, dh_1, dh_2, temp, act):
@@ -245,8 +308,10 @@ def p_o2_calc(delta, dh_1, dh_2, temp, act):
     :param temp:    temperature in K
     :return:        p_O2 as absolute value
     """
+
     def fun_p_o2(p_o2):
         return delta_mix(temp, p_o2, dh_1, dh_2, act) - delta
+
     try:
         sol_p_o2_l = brentq(fun_p_o2, a=-100, b=100)
     except ValueError:
@@ -267,15 +332,16 @@ def delta_mix(temp, p_o2_l, dh_1, dh_2, act):
     stho = s_th_o(temp)
     if type(act) == list:
         act = float(act[-1])
-    return delta_fun(stho, temp, p_o2_l, dh_1, (act / 2)) + \
-        + delta_fun(stho, temp, p_o2_l, dh_2, ((1 - act) / 2))
+    return delta_fun(stho, temp, p_o2_l, dh_1, (act / 2)) + +delta_fun(
+        stho, temp, p_o2_l, dh_2, ((1 - act) / 2)
+    )
 
 
 def delta_fun(stho, temp, p_o2_l, dh, d_max):
-    common = np.exp(stho*d_max/R)
-    common *= np.exp(p_o2_l)**(-d_max/2.)
-    common *= np.exp(-dh*d_max/(R*temp))
-    return d_max * common / (1. + common)
+    common = np.exp(stho * d_max / R)
+    common *= np.exp(p_o2_l) ** (-d_max / 2.0)
+    common *= np.exp(-dh * d_max / (R * temp))
+    return d_max * common / (1.0 + common)
 
 
 def d_s_fundamental(delta, dh_1, dh_2, temp, act, t_d_perov, t_d_brownm):
@@ -325,28 +391,38 @@ def entr_con_mixed(temp, p_o2_l, dh_1, dh_2, act):
         act = float(act[-1])
     # avoiding errors due to division by zero
     if act == 0:
-        delta_max_1 = 1E-10
+        delta_max_1 = 1e-10
     else:
         delta_max_1 = act * 0.5
 
     if act == 1:
-        delta_max_2 = 0.5 - 1E-10
+        delta_max_2 = 0.5 - 1e-10
     else:
         delta_max_2 = 0.5 - (act * 0.5)
 
     delta_1 = delta_fun(stho, temp, p_o2_l, dh_1, (act / 2))
     delta_2 = delta_fun(stho, temp, p_o2_l, dh_2, ((1 - act) / 2))
 
-    if delta_1 > 0.:
-        entr_con_1 = (1 / delta_max_1) * (a / 2) * R * (np.log(delta_max_1 - delta_1) - np.log(delta_1)) * (
-        delta_1 / (delta_1 + delta_2))
+    if delta_1 > 0.0:
+        entr_con_1 = (
+            (1 / delta_max_1)
+            * (a / 2)
+            * R
+            * (np.log(delta_max_1 - delta_1) - np.log(delta_1))
+            * (delta_1 / (delta_1 + delta_2))
+        )
     else:
-        entr_con_1 = 0.
-    if delta_2 > 0.:
-        entr_con_2 = (1 / delta_max_2) * (a / 2) * R * (np.log(delta_max_2 - delta_2) - np.log(delta_2)) * (
-        delta_2 / (delta_1 + delta_2))
+        entr_con_1 = 0.0
+    if delta_2 > 0.0:
+        entr_con_2 = (
+            (1 / delta_max_2)
+            * (a / 2)
+            * R
+            * (np.log(delta_max_2 - delta_2) - np.log(delta_2))
+            * (delta_2 / (delta_1 + delta_2))
+        )
     else:
-        entr_con_2 = 0.
+        entr_con_2 = 0.0
 
     return entr_con_1 + entr_con_2
 
@@ -381,18 +457,22 @@ def split_comp(compstr):
 
     am_1, am_2, tm_1, tm_2 = None, None, None, None
 
-    compstr_spl = [''.join(g) for _, g in groupby(str(compstr), str.isalpha)]
+    compstr_spl = ["".join(g) for _, g in groupby(str(compstr), str.isalpha)]
 
     for l in range(len(compstr_spl)):
         try:
-            if ptable.Element(compstr_spl[l]).is_alkaline or ptable.Element(
-                    compstr_spl[l]).is_alkali or ptable.Element(compstr_spl[l]).is_rare_earth_metal:
+            if (
+                ptable.Element(compstr_spl[l]).is_alkaline
+                or ptable.Element(compstr_spl[l]).is_alkali
+                or ptable.Element(compstr_spl[l]).is_rare_earth
+            ):
                 if am_1 is None:
                     am_1 = [compstr_spl[l], float(compstr_spl[l + 1])]
                 elif am_2 is None:
                     am_2 = [compstr_spl[l], float(compstr_spl[l + 1])]
             if ptable.Element(compstr_spl[l]).is_transition_metal and not (
-                ptable.Element(compstr_spl[l]).is_rare_earth_metal):
+                ptable.Element(compstr_spl[l]).is_rare_earth
+            ):
                 if tm_1 is None:
                     tm_1 = [compstr_spl[l], float(compstr_spl[l + 1])]
                 elif tm_2 is None:
@@ -430,12 +510,15 @@ def find_structures(compstr):
 
     # This method simply gets the lowest energy entry for all entries with the same composition.
     def get_most_stable_entry(formula):
-        relevant_entries = [entry for entry in all_entries if
-            entry.composition.reduced_formula == Composition(formula).reduced_formula]
+        relevant_entries = [
+            entry
+            for entry in all_entries
+            if entry.composition.reduced_formula == Composition(formula).reduced_formula
+        ]
         relevant_entries = sorted(relevant_entries, key=lambda e: e.energy_per_atom)
         return relevant_entries[0]
 
-    formula_spl = [''.join(g) for _, g in groupby(str(compstr), str.isalpha)]
+    formula_spl = ["".join(g) for _, g in groupby(str(compstr), str.isalpha)]
     perov_formula = []
     for k in range(len(formula_spl)):
         try:
@@ -470,10 +553,10 @@ def get_debye_temp(mpid):
     Calculates the debye temperature from eleastic tensors on the Materials Project
     Credits: Joseph Montoya
     """
-    np.seterr(over="ignore") # ignore overflow in double scalars
+    np.seterr(over="ignore")  # ignore overflow in double scalars
     data = mpr.get_data(mpid)[0]
-    struct = Structure.from_str(data['cif'], fmt='cif')
-    c_ij = ElasticTensor.from_voigt(data['elasticity']['elastic_tensor'])
+    struct = Structure.from_str(data["cif"], fmt="cif")
+    c_ij = ElasticTensor.from_voigt(data["elasticity"]["elastic_tensor"])
     td = c_ij.debye_temperature(struct)
 
     return td
@@ -491,11 +574,13 @@ def vib_ent(temp, t_d_perov, t_d_brownm):
     def s_int(temp, t_d):
         def d_y(temp, t_d):
             y = t_d / temp
+
             def integrand(x):
-                return x ** 3 / (np.exp(x) - 1)
+                return x**3 / (np.exp(x) - 1)
+
             if temp != 0:
                 integral_y = quad(integrand, 0, y)[0]
-                d = integral_y * (3 / (y ** 3))
+                d = integral_y * (3 / (y**3))
             else:
                 d = 0
             return d
@@ -579,10 +664,8 @@ def calc_dh_endm(compstr):
     """
 
     endm = find_endmembers(compstr)
-    dh_1 = find_theo_redenth(endm[0]) * endm[4] + find_theo_redenth(endm[1]) * \
-    endm[5]
-    dh_2 = find_theo_redenth(endm[2]) * endm[4] + find_theo_redenth(endm[2]) * \
-    endm[5]
+    dh_1 = find_theo_redenth(endm[0]) * endm[4] + find_theo_redenth(endm[1]) * endm[5]
+    dh_2 = find_theo_redenth(endm[2]) * endm[4] + find_theo_redenth(endm[2]) * endm[5]
 
     if dh_1 > dh_2:
         dh_max = dh_1
@@ -641,7 +724,7 @@ def redenth_act(compstr):
 
     if theo_solid_solution:
         if not red_enth_mean_endm:
-            difference = float('inf')
+            difference = float("inf")
         else:
             difference = theo_solid_solution - red_enth_mean_endm
 
@@ -680,8 +763,9 @@ def find_active(mat_comp):
                 charge_sum += mat_comp[i][1]
             elif ptable.Element(mat_comp[i][0]).is_alkaline:
                 charge_sum += 2 * mat_comp[i][1]
-            elif (ptable.Element(mat_comp[i][0]).is_lanthanoid or (
-                    mat_comp[i][0] == "Bi")) and mat_comp[i][0] != "Ce":
+            elif (
+                ptable.Element(mat_comp[i][0]).is_lanthanoid or (mat_comp[i][0] == "Bi")
+            ) and mat_comp[i][0] != "Ce":
                 charge_sum += 3 * mat_comp[i][1]
             elif mat_comp[i][0] == "Ce":
                 charge_sum += 4 * mat_comp[i][1]
@@ -697,7 +781,18 @@ def find_active(mat_comp):
     # charge on B sites 3+
     # order of binary oxide reducibility according to Materials Project (A2O3 -> AO + O2)
     if round((6 - charge_sum), 2) == 3:
-        red_order = ["Sc", "Ti", "V", "Cr", "Fe", "Mn", "Cu", "Co", "Ni", "Ag"] # changed Ni<->Ag order according to DFT results
+        red_order = [
+            "Sc",
+            "Ti",
+            "V",
+            "Cr",
+            "Fe",
+            "Mn",
+            "Cu",
+            "Co",
+            "Ni",
+            "Ag",
+        ]  # changed Ni<->Ag order according to DFT results
 
     # charge on B sites 5+
     # order of binary oxide reducibility according to Materials Project (A2O3 -> AO + O2)
@@ -708,18 +803,20 @@ def find_active(mat_comp):
     if red_order:
         for i in range(len(red_order)):
             if mat_comp[2][0] == red_order[i]:
-                more_reducible = red_order[i + 1:-1]
+                more_reducible = red_order[i + 1 : -1]
                 if mat_comp[3] is not None and (mat_comp[3][0] in more_reducible):
                     act_a = mat_comp[3]
                 else:
                     act_a = mat_comp[2]
     if act_a is None:
-        raise ValueError("B species reducibility unknown, preferred reduction of species not predicted")
+        raise ValueError(
+            "B species reducibility unknown, preferred reduction of species not predicted"
+        )
 
     # correct bug for the most reducible species
     if act_a[0] == red_order[-2] and (red_order[-1] in str(mat_comp)):
         act_a[0] = red_order[-1]
-        act_a[1] = 1-act_a[1]
+        act_a[1] = 1 - act_a[1]
 
     return act_a[0], act_a[1]
 
@@ -749,12 +846,15 @@ def find_theo_redenth(compstr):
 
     # This method simply gets the lowest energy entry for all entries with the same composition.
     def get_most_stable_entry(formula):
-        relevant_entries = [entry for entry in all_entries if
-        entry.composition.reduced_formula == Composition(formula).reduced_formula]
+        relevant_entries = [
+            entry
+            for entry in all_entries
+            if entry.composition.reduced_formula == Composition(formula).reduced_formula
+        ]
         relevant_entries = sorted(relevant_entries, key=lambda e: e.energy_per_atom)
         return relevant_entries[0]
 
-    formula_spl = [''.join(g) for _, g in groupby(str(compstr), str.isalpha)]
+    formula_spl = ["".join(g) for _, g in groupby(str(compstr), str.isalpha)]
     perov_formula = []
     for k in range(len(formula_spl)):
         try:
@@ -777,8 +877,9 @@ def find_theo_redenth(compstr):
 
     # for oxygen: do not use the most stable phase O8 but the most stable O2 phase
     def get_oxygen():
-        relevant_entries = [entry for entry in all_entries if
-        entry.composition == Composition("O2")]
+        relevant_entries = [
+            entry for entry in all_entries if entry.composition == Composition("O2")
+        ]
         relevant_entries = sorted(relevant_entries, key=lambda e: e.energy_per_atom)
         return relevant_entries[0]
 
@@ -806,42 +907,44 @@ def unstable_phases(compstr):
     phases are considered unstable for reasons listed in the documentation
     these phases shall not appear in the energy analysis
     """
-    unstable_list = ["Na0.5K0.5Mo1O",
-                    "Mg1Co1O",
-                    "Sm1Ag1O",
-                    "Na0.625K0.375Mo0.75V0.25O",
-                    "Na0.875K0.125Mo0.125V0.875O",
-                    "Rb1Mo1O",
-                    "Na0.875K0.125V1O",
-                    "Na0.75K0.25Mo0.375V0.625O",
-                    "Eu1Ag1O",
-                    "Na0.875K0.125V0.875Cr0.125O",
-                    "Na0.5K0.5W0.25Mo0.75O",
-                    "Na0.5K0.5Mo0.875V0.125O",
-                    "Na1Mo1O",
-                    "Mg1Ti1O",
-                    "Na0.5K0.5W0.5Mo0.5O",
-                    "Na1V1O",
-                    "K1V1O",
-                    "Sm1Cu1O",
-                    "Na0.75K0.25Mo0.5V0.5O",
-                    "Sm1Ti1O",
-                    "Na0.5K0.5W0.125Mo0.875O",
-                    "Eu1Ti1O",
-                    "Na0.625K0.375Mo0.625V0.375O",
-                    "Rb1V1O",
-                    "Mg1Mn1O",
-                    "Na0.5K0.5W0.875Mo0.125O",
-                    "Na0.875K0.125V0.75Cr0.25O",
-                    "K1Mo1O",
-                    "Na0.5K0.5W0.375Mo0.625O",
-                    "Na0.875K0.125Mo0.25V0.75O",
-                    "Na0.5K0.5W0.625Mo0.375O",
-                    "Mg1Fe1O",
-                    "Na0.5K0.5W0.75Mo0.25O",
-                    "Mg1Cu1O",
-                    "Eu1Cu1O",
-                    "Na0.625K0.375Mo0.875V0.125O"]
+    unstable_list = [
+        "Na0.5K0.5Mo1O",
+        "Mg1Co1O",
+        "Sm1Ag1O",
+        "Na0.625K0.375Mo0.75V0.25O",
+        "Na0.875K0.125Mo0.125V0.875O",
+        "Rb1Mo1O",
+        "Na0.875K0.125V1O",
+        "Na0.75K0.25Mo0.375V0.625O",
+        "Eu1Ag1O",
+        "Na0.875K0.125V0.875Cr0.125O",
+        "Na0.5K0.5W0.25Mo0.75O",
+        "Na0.5K0.5Mo0.875V0.125O",
+        "Na1Mo1O",
+        "Mg1Ti1O",
+        "Na0.5K0.5W0.5Mo0.5O",
+        "Na1V1O",
+        "K1V1O",
+        "Sm1Cu1O",
+        "Na0.75K0.25Mo0.5V0.5O",
+        "Sm1Ti1O",
+        "Na0.5K0.5W0.125Mo0.875O",
+        "Eu1Ti1O",
+        "Na0.625K0.375Mo0.625V0.375O",
+        "Rb1V1O",
+        "Mg1Mn1O",
+        "Na0.5K0.5W0.875Mo0.125O",
+        "Na0.875K0.125V0.75Cr0.25O",
+        "K1Mo1O",
+        "Na0.5K0.5W0.375Mo0.625O",
+        "Na0.875K0.125Mo0.25V0.75O",
+        "Na0.5K0.5W0.625Mo0.375O",
+        "Mg1Fe1O",
+        "Na0.5K0.5W0.75Mo0.25O",
+        "Mg1Cu1O",
+        "Eu1Cu1O",
+        "Na0.625K0.375Mo0.875V0.125O",
+    ]
 
     if compstr.split("O")[0] in str(unstable_list):
         unstable = True
@@ -852,36 +955,42 @@ def unstable_phases(compstr):
 
 
 def mechanical_envelope(p_red):
-        """
-        Uses the "mechanical envelope" function from Stefan Brendelberger et al.
-        dx.doi.org/10.1016/j.solener.2016.11.023
-        Estimates the energy required to pump one mol of oxygen at this pressure using mechanical pumps.
+    """
+    Uses the "mechanical envelope" function from Stefan Brendelberger et al.
+    dx.doi.org/10.1016/j.solener.2016.11.023
+    Estimates the energy required to pump one mol of oxygen at this pressure using mechanical pumps.
 
-        :param p_red:                   oxygen partial pressure at reduction conditions
+    :param p_red:                   oxygen partial pressure at reduction conditions
 
-        :return: pump_ener_envelope:    mechanical energy required to pump one mol of O
-        """
+    :return: pump_ener_envelope:    mechanical energy required to pump one mol of O
+    """
 
-        if (p_red < 1E-6) or (p_red > 0.7):
-            q_pump = float('inf') # mechanical envelope not applicable in this range
-        else:
-            eff_sol = 0.4
+    if (p_red < 1e-6) or (p_red > 0.7):
+        q_pump = float("inf")  # mechanical envelope not applicable in this range
+    else:
+        eff_sol = 0.4
 
-            temp = 473  # this is the operating temperature of the pump
-            a0 = 0.30557
-            a1 = -0.17808
-            a2 = -0.15514
-            a3 = -0.03173
-            a4 = -0.00203
-            p0 = 1e5
-            p = p_red * p0
+        temp = 473  # this is the operating temperature of the pump
+        a0 = 0.30557
+        a1 = -0.17808
+        a2 = -0.15514
+        a3 = -0.03173
+        a4 = -0.00203
+        p0 = 1e5
+        p = p_red * p0
 
-            eff = a0 + a1*np.log10(p/p0) + a2*(np.log10(p/p0))**2 + a3*(np.log10(p/p0))**3 + a4*(np.log10(p/p0))**4
-            q_iso=R*temp*np.log(p0/p)
-            q_pump=(q_iso/eff) / eff_sol
-            q_pump = q_pump / 2000
+        eff = (
+            a0
+            + a1 * np.log10(p / p0)
+            + a2 * (np.log10(p / p0)) ** 2
+            + a3 * (np.log10(p / p0)) ** 3
+            + a4 * (np.log10(p / p0)) ** 4
+        )
+        q_iso = R * temp * np.log(p0 / p)
+        q_pump = (q_iso / eff) / eff_sol
+        q_pump = q_pump / 2000
 
-        return q_pump
+    return q_pump
 
 
 def c_p_water_liquid(temp):
@@ -894,8 +1003,13 @@ def c_p_water_liquid(temp):
 
     temp_frac = temp / 1000
 
-    c_p_water = shomdat[0] + (shomdat[1] * temp_frac) + (shomdat[2] * (temp_frac ** 2)) + (
-        shomdat[3] * (temp_frac ** 3)) + (shomdat[4] / (temp_frac ** 2))
+    c_p_water = (
+        shomdat[0]
+        + (shomdat[1] * temp_frac)
+        + (shomdat[2] * (temp_frac**2))
+        + (shomdat[3] * (temp_frac**3))
+        + (shomdat[4] / (temp_frac**2))
+    )
 
     return c_p_water
 
@@ -911,8 +1025,13 @@ def c_p_steam(temp):
         shomdat = [41.96126, 8.622053, -1.499780, 0.098119, -11.15764]
     temp_frac = temp / 1000
 
-    c_p_steam = shomdat[0] + (shomdat[1] * temp_frac) + (shomdat[2] * (temp_frac ** 2)) + (
-    shomdat[3] * (temp_frac ** 3)) + (shomdat[4] / (temp_frac ** 2))
+    c_p_steam = (
+        shomdat[0]
+        + (shomdat[1] * temp_frac)
+        + (shomdat[2] * (temp_frac**2))
+        + (shomdat[3] * (temp_frac**3))
+        + (shomdat[4] / (temp_frac**2))
+    )
 
     return c_p_steam
 
@@ -993,11 +1112,11 @@ def dhf_h2o(t_ox):
         f = -272.1797
 
     t_1000 = t_ox / 1000
-    hform = a*t_1000
-    hform += 0.5*b*(t_1000**2)
-    hform += (1/3)*c*(t_1000**3)
-    hform += (1/4)*c*(t_1000**4)
-    hform += -e/t_1000
+    hform = a * t_1000
+    hform += 0.5 * b * (t_1000**2)
+    hform += (1 / 3) * c * (t_1000**3)
+    hform += (1 / 4) * c * (t_1000**4)
+    hform += -e / t_1000
     hform += f
 
     return hform
@@ -1032,11 +1151,11 @@ def dh_co_co2(t_ox):
         e = -6.447293
         f = -425.9186
 
-    hco2 = a*t_1000
-    hco2 += 0.5*b*(t_1000**2)
-    hco2 += (1/3)*c*(t_1000**3)
-    hco2 += (1/4)*c*(t_1000**4)
-    hco2 += -e/t_1000
+    hco2 = a * t_1000
+    hco2 += 0.5 * b * (t_1000**2)
+    hco2 += (1 / 3) * c * (t_1000**3)
+    hco2 += (1 / 4) * c * (t_1000**4)
+    hco2 += -e / t_1000
     hco2 += f
 
     # CO
@@ -1056,259 +1175,311 @@ def dh_co_co2(t_ox):
         e = -3.282780
         f = -127.8375
 
-    hco = a*t_1000
-    hco += 0.5*b*(t_1000**2)
-    hco += (1/3)*c*(t_1000**3)
-    hco += (1/4)*c*(t_1000**4)
-    hco += -e/t_1000
+    hco = a * t_1000
+    hco += 0.5 * b * (t_1000**2)
+    hco += (1 / 3) * c * (t_1000**3)
+    hco += (1 / 4) * c * (t_1000**4)
+    hco += -e / t_1000
     hco += f
 
-    return hco2-hco
+    return hco2 - hco
 
 
-def energy_on_the_fly(process, resdict, pump_ener, w_feed, h_rec, h_rec_steam, celsius=True, h_val="high", p_ox_wscs=0,
-                      rem_unstable=True):
-        """
-        Allows to calculate the energy input for different conditions rather quickly, without having to re-calculate
-        the time-intensive chemical and sensible energy every time again
+def energy_on_the_fly(
+    process,
+    resdict,
+    pump_ener,
+    w_feed,
+    h_rec,
+    h_rec_steam,
+    celsius=True,
+    h_val="high",
+    p_ox_wscs=0,
+    rem_unstable=True,
+):
+    """
+    Allows to calculate the energy input for different conditions rather quickly, without having to re-calculate
+    the time-intensive chemical and sensible energy every time again
 
-        :param resdict:     dictionary with results (mainly for chemical and sesible energy, as calculated by
-                            EnergyAnalysis().calc()
+    :param resdict:     dictionary with results (mainly for chemical and sesible energy, as calculated by
+                        EnergyAnalysis().calc()
 
-        :param pump_ener:   allows to consider the pumping energy required to pump from p_o_2_1 to p_o_2_2
-                            input in kJ per kg of redox material in the oxidized state + the losses
-                            This depends on many factors, such as the type of pumps used, the volume of the
-                            reaction chamber, the reactor type etc., so the user needs to calculate this
-                            value beforehand depending on the individual process conditions
-                            In case some of the pumping energy can be recovered, this share needs to be
-                            subtracted beforehand, as it is not considered herein.
+    :param pump_ener:   allows to consider the pumping energy required to pump from p_o_2_1 to p_o_2_2
+                        input in kJ per kg of redox material in the oxidized state + the losses
+                        This depends on many factors, such as the type of pumps used, the volume of the
+                        reaction chamber, the reactor type etc., so the user needs to calculate this
+                        value beforehand depending on the individual process conditions
+                        In case some of the pumping energy can be recovered, this share needs to be
+                        subtracted beforehand, as it is not considered herein.
 
-        :param h_rec:               heat recovery efficiency factor (0...1) for chemical and sensible energy
+    :param h_rec:               heat recovery efficiency factor (0...1) for chemical and sensible energy
 
-        ***these values are only relevant for water splitting***
-        :param h_rec_steam:         heat recovery efficiency factor (0...1) for recovery of heat stored in the steam
-        :param w_feed:              water inlet temperature (in °C or K as defined by 'celsius')
-        :param h_val:               heating value of hydrogen: 'low' -> lower heating value,
-                                                               'high' -> higher heating value
+    ***these values are only relevant for water splitting***
+    :param h_rec_steam:         heat recovery efficiency factor (0...1) for recovery of heat stored in the steam
+    :param w_feed:              water inlet temperature (in °C or K as defined by 'celsius')
+    :param h_val:               heating value of hydrogen: 'low' -> lower heating value,
+                                                           'high' -> higher heating value
 
-        :param p_ox_wscs:   ratio H2/H2O / ratio CO/CO2
+    :param p_ox_wscs:   ratio H2/H2O / ratio CO/CO2
 
-        :param rem_unstable: if True, phases which are potentially unstable for chemical reasons are removed
-                            this is based on the phases in "unstable_phases.json"
-                            currently, phases are excluded for the following reasons:
-                            - tolerance factor below 0.9 (e.g. EuCuO3, which cannot be synthesized as opposed to EuFeO3)
-                            - phases with expected high covalency (V5+ cations, for instance, NaVO3 is stable but not a perovskite)
-                            - phases with expected low melting point (Mo5+ cations, see this article for NaMoO3
-                            http://www.journal.csj.jp/doi/pdf/10.1246/bcsj.64.161)
+    :param rem_unstable: if True, phases which are potentially unstable for chemical reasons are removed
+                        this is based on the phases in "unstable_phases.json"
+                        currently, phases are excluded for the following reasons:
+                        - tolerance factor below 0.9 (e.g. EuCuO3, which cannot be synthesized as opposed to EuFeO3)
+                        - phases with expected high covalency (V5+ cations, for instance, NaVO3 is stable but not a perovskite)
+                        - phases with expected low melting point (Mo5+ cations, see this article for NaMoO3
+                        http://www.journal.csj.jp/doi/pdf/10.1246/bcsj.64.161)
 
-                            By default, this is always True and there is no way in the user front-end to change this.
-                            However, this could be changed manually by the developers, if neccessary.
-        """
-        if process == "Air Separation":
-            p_ox_wscs = 1
+                        By default, this is always True and there is no way in the user front-end to change this.
+                        However, this could be changed manually by the developers, if neccessary.
+    """
+    if process == "Air Separation":
+        p_ox_wscs = 1
 
-        # initialize result variables
-        result_val_ener_i = np.empty(6)
-        result_val_per_kg_redox = np.empty(6)
-        result_val_per_kg_wh_redox = np.empty(6)
-        result_val_per_kj_mol_prod = np.empty(6)
-        result_val_per_energy_l = np.empty(6)
-        result_val_per_energy_l_wh = np.empty(6)
-        result_val_efficiency = np.empty(2)
-        result_val_mol_prod_mol_red = np.empty(2)
-        result_val_l_prod_kg_red = np.empty(2)
-        result_val_g_prod_kg_red = np.empty(2)
-        result_val_delta_redox = np.empty(2)
-        result_val_mass_change = np.empty(2)
+    # initialize result variables
+    result_val_ener_i = np.empty(6)
+    result_val_per_kg_redox = np.empty(6)
+    result_val_per_kg_wh_redox = np.empty(6)
+    result_val_per_kj_mol_prod = np.empty(6)
+    result_val_per_energy_l = np.empty(6)
+    result_val_per_energy_l_wh = np.empty(6)
+    result_val_efficiency = np.empty(2)
+    result_val_mol_prod_mol_red = np.empty(2)
+    result_val_l_prod_kg_red = np.empty(2)
+    result_val_g_prod_kg_red = np.empty(2)
+    result_val_delta_redox = np.empty(2)
+    result_val_mass_change = np.empty(2)
 
-        for rd in resdict[0]['energy_analysis']:
-            chemical_energy = rd['Chemical Energy'] * 1000
-            energy_sensible = rd['Sensible Energy']
-            t_ox = rd['T_ox']
-            t_red = rd['T_red']
-            t_mean = (t_ox + t_red) / 2
-            delta_1 = rd['delta_1']
-            delta_2 = rd['delta_2']
-            g_prod_kg_red = rd['g_prod_kg_red']
-            l_prod_kg_red = rd['l_prod_kg_red']
-            mass_redox_i = rd['mass_redox']
-            mol_mass_ox = rd['mol_mass_ox']
-            mol_prod_mol_red = rd['mol_prod_mol_red']
-            p_ox = rd['p_ox']
-            p_red = rd['p_red']
-            compstr = rd['compstr']
-            prodstr = rd['prodstr']
-            prodstr_alt = rd['prodstr_alt']
-            unstable = rd['unstable']
+    for rd in resdict[0]["energy_analysis"]:
+        chemical_energy = rd["Chemical Energy"] * 1000
+        energy_sensible = rd["Sensible Energy"]
+        t_ox = rd["T_ox"]
+        t_red = rd["T_red"]
+        t_mean = (t_ox + t_red) / 2
+        delta_1 = rd["delta_1"]
+        delta_2 = rd["delta_2"]
+        g_prod_kg_red = rd["g_prod_kg_red"]
+        l_prod_kg_red = rd["l_prod_kg_red"]
+        mass_redox_i = rd["mass_redox"]
+        mol_mass_ox = rd["mol_mass_ox"]
+        mol_prod_mol_red = rd["mol_prod_mol_red"]
+        p_ox = rd["p_ox"]
+        p_red = rd["p_red"]
+        compstr = rd["compstr"]
+        prodstr = rd["prodstr"]
+        prodstr_alt = rd["prodstr_alt"]
+        unstable = rd["unstable"]
 
-            # chemical energy stored in products
-            if process == "Water Splitting":
-                dh_wscs = dhf_h2o(t_mean) * mol_prod_mol_red
-            elif process == "CO2 Splitting":
-                dh_wscs = dh_co_co2(t_mean) * mol_prod_mol_red
-            else:
-                dh_wscs = 0
-
-            energy_integral_dh = chemical_energy - ((chemical_energy + dh_wscs*1000) * h_rec)
-            if len(resdict) < 50:  # for experimental data: convert J/mol to kJ/mol
-                energy_integral_dh = energy_integral_dh / 1000
-                # wscs does not matter, as no water splitting / co2 splitting is considered for exp data
-
-            # pumping energy
-            if pump_ener != -1:
-                energy_pumping = (float(pump_ener) * mol_mass_ox) / 1000
-            else:  # using mechanical envelope
-                # per mol O
-                energy_pumping = mechanical_envelope(p_red=p_red)
-                # per mol material
-                energy_pumping = energy_pumping * mol_prod_mol_red
-
-            # steam generation
-            if process == "Water Splitting" and h_rec_steam != 1:
-                energy_steam = mol_prod_mol_red * energy_steam_generation(temp_1=w_feed,
-                        temp_2=((t_ox+t_red)*0.5)-273.15,
-                        h_2_h2o=p_ox_wscs,
-                        celsius=celsius,
-                        h_rec=h_rec_steam)
-            else:
-                energy_steam = 0
-
-            # total energy
-            energy_total = energy_integral_dh + energy_sensible * (1 - h_rec) + energy_pumping + energy_steam
-
-            ener_i = np.array([energy_total, energy_integral_dh, energy_sensible * (1 - h_rec),
-            energy_pumping,
-            energy_steam])
-
-            # kJ/kg of redox material
-            per_kg_redox = (ener_i / mol_mass_ox) * 1000
-            # Wh/kg of redox material
-            per_kg_wh_redox = per_kg_redox / 3.6
-            # kJ/mol of product (O, H2, or CO)
-            kj_mol_prod = ener_i / (delta_2 - delta_1)
-            # kJ/L of product (ideal gas at SATP)
-            energy_l = kj_mol_prod / 24.465
-            # convert from O to O2
-            if process == "Air Separation":
-                energy_l = 2 * energy_l
-            # Wh/L of product (ideal gas at SATP)
-            energy_l_wh = energy_l / 3.6
-
-            # calculate efficiency for water splitting
-            if process == "Water Splitting":
-                # source for heating values
-                # https://h2tools.org/node/3131
-                if h_val == "low":
-                    h_v = 119.96
-                elif h_val == "high":
-                    h_v = 141.88
-                else:
-                    raise ValueError("heating_value must be either 'high' or 'low'")
-                # convert kJ/mol H2 to MJ/kg H2 -> divide by 2.016
-                efficiency = (h_v / (kj_mol_prod[0] / 2.016)) * 100
-            else:
-                efficiency = None
-
-            delta_redox_i = float(delta_2 - delta_1)
-            mass_change_i = float(mass_redox_i)
-            compdisp = remove_comp_one(compstr=compstr)
-
-            invalid_val = False  # remove data of unstable compounds
-            if rem_unstable and unstable:
-                invalid_val = True
-
-            # append new values to result and add compositions
-            if (ener_i[0] < 0) or invalid_val: # sort out negative values, heat input is always positive
-                ener_i[0] = float('inf')
-            res_i = np.append(ener_i, compdisp)
-            result_val_ener_i = np.vstack((result_val_ener_i, res_i))
-
-            if per_kg_redox[0] < 0 or invalid_val:
-                per_kg_redox[0] = float('inf')
-            res_i = np.append(per_kg_redox, compdisp)
-            result_val_per_kg_redox = np.vstack((result_val_per_kg_redox, res_i))
-
-            if per_kg_wh_redox[0] < 0 or invalid_val:
-                per_kg_wh_redox[0] = float('inf')
-            res_i = np.append(per_kg_wh_redox, compdisp)
-            result_val_per_kg_wh_redox = np.vstack((result_val_per_kg_wh_redox, res_i))
-
-            if kj_mol_prod[0] < 0 or invalid_val:
-                kj_mol_prod[0] = float('inf')
-            res_i = np.append(kj_mol_prod, compdisp)
-            result_val_per_kj_mol_prod = np.vstack((result_val_per_kj_mol_prod, res_i))
-
-            if energy_l[0] < 0 or invalid_val:
-                energy_l[0] = float('inf')
-            res_i = np.append(energy_l, compdisp)
-            result_val_per_energy_l = np.vstack((result_val_per_energy_l, res_i))
-
-            if energy_l_wh[0] < 0 or invalid_val:
-                energy_l_wh[0] = float('inf')
-            res_i = np.append(energy_l_wh, compdisp)
-            result_val_per_energy_l_wh = np.vstack((result_val_per_energy_l_wh, res_i))
-
-            if efficiency:
-                if efficiency < 0 or invalid_val:
-                    efficiency = float('-inf')
-            res_i = np.append(efficiency, compdisp)
-            result_val_efficiency = np.vstack((result_val_efficiency, res_i))
-
-            if mol_prod_mol_red < 0 or invalid_val:
-                mol_prod_mol_red = float('-inf')
-            res_i = np.append(mol_prod_mol_red, compdisp)
-            result_val_mol_prod_mol_red = np.vstack((result_val_mol_prod_mol_red, res_i))
-
-            if l_prod_kg_red < 0 or invalid_val:
-                l_prod_kg_red = float('-inf')
-            res_i = np.append(l_prod_kg_red, compdisp)
-            result_val_l_prod_kg_red = np.vstack((result_val_l_prod_kg_red, res_i))
-
-            if g_prod_kg_red < 0 or invalid_val:
-                g_prod_kg_red = float('-inf')
-            res_i = np.append(g_prod_kg_red, compdisp)
-            result_val_g_prod_kg_red = np.vstack((result_val_g_prod_kg_red, res_i))
-
-            if delta_redox_i < 0 or invalid_val:
-                delta_redox_i = float('-inf')
-            res_i = np.append(delta_redox_i, compdisp)
-            result_val_delta_redox = np.vstack((result_val_delta_redox, res_i))
-
-            if mass_change_i < 0 or invalid_val:
-                mass_change_i = float('-inf')
-            res_i = np.append(mass_change_i, compdisp)
-            result_val_mass_change = np.vstack((result_val_mass_change, res_i))
-
-        # sort results
-        result_val_ener_i = sorted(result_val_ener_i[1:], key=lambda x: float(x[0]))
-        result_val_per_kg_redox = sorted(result_val_per_kg_redox[1:], key=lambda x: float(x[0]))
-        result_val_per_kg_wh_redox = sorted(result_val_per_kg_wh_redox[1:], key=lambda x: float(x[0]))
-        result_val_per_kj_mol_prod = sorted(result_val_per_kj_mol_prod[1:], key=lambda x: float(x[0]))
-        result_val_per_energy_l = sorted(result_val_per_energy_l[1:], key=lambda x: float(x[0]))
-        result_val_per_energy_l_wh = sorted(result_val_per_energy_l_wh[1:], key=lambda x: float(x[0]))
+        # chemical energy stored in products
         if process == "Water Splitting":
-            result_val_efficiency = sorted(result_val_efficiency[1:], key=lambda x: float(x[0]), reverse=True)
+            dh_wscs = dhf_h2o(t_mean) * mol_prod_mol_red
+        elif process == "CO2 Splitting":
+            dh_wscs = dh_co_co2(t_mean) * mol_prod_mol_red
         else:
-            result_val_efficiency = result_val_efficiency[1:]
-        result_val_mol_prod_mol_red = sorted(result_val_mol_prod_mol_red[1:], key=lambda x: float(x[0]), reverse=True)
-        result_val_l_prod_kg_red = sorted(result_val_l_prod_kg_red[1:], key=lambda x: float(x[0]), reverse=True)
-        result_val_g_prod_kg_red = sorted(result_val_g_prod_kg_red[1:], key=lambda x: float(x[0]), reverse=True)
-        result_val_delta_redox = sorted(result_val_delta_redox[1:], key=lambda x: float(x[0]), reverse=True)
-        result_val_mass_change = sorted(result_val_mass_change[1:], key=lambda x: float(x[0]), reverse=True)
+            dh_wscs = 0
 
-        # create dictionary with results
-        dict_result = {"kJ/mol redox material": result_val_ener_i,
-                       "kJ/kg redox material": result_val_per_kg_redox,
-                       "Wh/kg redox material": result_val_per_kg_wh_redox,
-                       str("kJ/mol of " + prodstr_alt): result_val_per_kj_mol_prod,
-                       str("kJ/L of " + prodstr): result_val_per_energy_l,
-                       str("Wh/L of " + prodstr): result_val_per_energy_l_wh,
-                       "Heat to fuel efficiency in % (only valid for Water Splitting)": result_val_efficiency,
-                       str("mol " + prodstr_alt + " per mol redox material"): result_val_mol_prod_mol_red,
-                       str("L " + prodstr + " per mol redox material"): result_val_l_prod_kg_red,
-                       str("g " + prodstr + " per mol redox material"): result_val_g_prod_kg_red,
-                       "Change in non-stoichiometry between T_ox and T_red": result_val_delta_redox,
-                       "Mass change between T_ox and T_red": result_val_mass_change
-                       }
+        energy_integral_dh = chemical_energy - (
+            (chemical_energy + dh_wscs * 1000) * h_rec
+        )
+        if len(resdict) < 50:  # for experimental data: convert J/mol to kJ/mol
+            energy_integral_dh = energy_integral_dh / 1000
+            # wscs does not matter, as no water splitting / co2 splitting is considered for exp data
 
-        return dict_result
+        # pumping energy
+        if pump_ener != -1:
+            energy_pumping = (float(pump_ener) * mol_mass_ox) / 1000
+        else:  # using mechanical envelope
+            # per mol O
+            energy_pumping = mechanical_envelope(p_red=p_red)
+            # per mol material
+            energy_pumping = energy_pumping * mol_prod_mol_red
+
+        # steam generation
+        if process == "Water Splitting" and h_rec_steam != 1:
+            energy_steam = mol_prod_mol_red * energy_steam_generation(
+                temp_1=w_feed,
+                temp_2=((t_ox + t_red) * 0.5) - 273.15,
+                h_2_h2o=p_ox_wscs,
+                celsius=celsius,
+                h_rec=h_rec_steam,
+            )
+        else:
+            energy_steam = 0
+
+        # total energy
+        energy_total = (
+            energy_integral_dh
+            + energy_sensible * (1 - h_rec)
+            + energy_pumping
+            + energy_steam
+        )
+
+        ener_i = np.array(
+            [
+                energy_total,
+                energy_integral_dh,
+                energy_sensible * (1 - h_rec),
+                energy_pumping,
+                energy_steam,
+            ]
+        )
+
+        # kJ/kg of redox material
+        per_kg_redox = (ener_i / mol_mass_ox) * 1000
+        # Wh/kg of redox material
+        per_kg_wh_redox = per_kg_redox / 3.6
+        # kJ/mol of product (O, H2, or CO)
+        kj_mol_prod = ener_i / (delta_2 - delta_1)
+        # kJ/L of product (ideal gas at SATP)
+        energy_l = kj_mol_prod / 24.465
+        # convert from O to O2
+        if process == "Air Separation":
+            energy_l = 2 * energy_l
+        # Wh/L of product (ideal gas at SATP)
+        energy_l_wh = energy_l / 3.6
+
+        # calculate efficiency for water splitting
+        if process == "Water Splitting":
+            # source for heating values
+            # https://h2tools.org/node/3131
+            if h_val == "low":
+                h_v = 119.96
+            elif h_val == "high":
+                h_v = 141.88
+            else:
+                raise ValueError("heating_value must be either 'high' or 'low'")
+            # convert kJ/mol H2 to MJ/kg H2 -> divide by 2.016
+            efficiency = (h_v / (kj_mol_prod[0] / 2.016)) * 100
+        else:
+            efficiency = None
+
+        delta_redox_i = float(delta_2 - delta_1)
+        mass_change_i = float(mass_redox_i)
+        compdisp = remove_comp_one(compstr=compstr)
+
+        invalid_val = False  # remove data of unstable compounds
+        if rem_unstable and unstable:
+            invalid_val = True
+
+        # append new values to result and add compositions
+        if (
+            ener_i[0] < 0
+        ) or invalid_val:  # sort out negative values, heat input is always positive
+            ener_i[0] = float("inf")
+        res_i = np.append(ener_i, compdisp)
+        result_val_ener_i = np.vstack((result_val_ener_i, res_i))
+
+        if per_kg_redox[0] < 0 or invalid_val:
+            per_kg_redox[0] = float("inf")
+        res_i = np.append(per_kg_redox, compdisp)
+        result_val_per_kg_redox = np.vstack((result_val_per_kg_redox, res_i))
+
+        if per_kg_wh_redox[0] < 0 or invalid_val:
+            per_kg_wh_redox[0] = float("inf")
+        res_i = np.append(per_kg_wh_redox, compdisp)
+        result_val_per_kg_wh_redox = np.vstack((result_val_per_kg_wh_redox, res_i))
+
+        if kj_mol_prod[0] < 0 or invalid_val:
+            kj_mol_prod[0] = float("inf")
+        res_i = np.append(kj_mol_prod, compdisp)
+        result_val_per_kj_mol_prod = np.vstack((result_val_per_kj_mol_prod, res_i))
+
+        if energy_l[0] < 0 or invalid_val:
+            energy_l[0] = float("inf")
+        res_i = np.append(energy_l, compdisp)
+        result_val_per_energy_l = np.vstack((result_val_per_energy_l, res_i))
+
+        if energy_l_wh[0] < 0 or invalid_val:
+            energy_l_wh[0] = float("inf")
+        res_i = np.append(energy_l_wh, compdisp)
+        result_val_per_energy_l_wh = np.vstack((result_val_per_energy_l_wh, res_i))
+
+        if efficiency:
+            if efficiency < 0 or invalid_val:
+                efficiency = float("-inf")
+        res_i = np.append(efficiency, compdisp)
+        result_val_efficiency = np.vstack((result_val_efficiency, res_i))
+
+        if mol_prod_mol_red < 0 or invalid_val:
+            mol_prod_mol_red = float("-inf")
+        res_i = np.append(mol_prod_mol_red, compdisp)
+        result_val_mol_prod_mol_red = np.vstack((result_val_mol_prod_mol_red, res_i))
+
+        if l_prod_kg_red < 0 or invalid_val:
+            l_prod_kg_red = float("-inf")
+        res_i = np.append(l_prod_kg_red, compdisp)
+        result_val_l_prod_kg_red = np.vstack((result_val_l_prod_kg_red, res_i))
+
+        if g_prod_kg_red < 0 or invalid_val:
+            g_prod_kg_red = float("-inf")
+        res_i = np.append(g_prod_kg_red, compdisp)
+        result_val_g_prod_kg_red = np.vstack((result_val_g_prod_kg_red, res_i))
+
+        if delta_redox_i < 0 or invalid_val:
+            delta_redox_i = float("-inf")
+        res_i = np.append(delta_redox_i, compdisp)
+        result_val_delta_redox = np.vstack((result_val_delta_redox, res_i))
+
+        if mass_change_i < 0 or invalid_val:
+            mass_change_i = float("-inf")
+        res_i = np.append(mass_change_i, compdisp)
+        result_val_mass_change = np.vstack((result_val_mass_change, res_i))
+
+    # sort results
+    result_val_ener_i = sorted(result_val_ener_i[1:], key=lambda x: float(x[0]))
+    result_val_per_kg_redox = sorted(
+        result_val_per_kg_redox[1:], key=lambda x: float(x[0])
+    )
+    result_val_per_kg_wh_redox = sorted(
+        result_val_per_kg_wh_redox[1:], key=lambda x: float(x[0])
+    )
+    result_val_per_kj_mol_prod = sorted(
+        result_val_per_kj_mol_prod[1:], key=lambda x: float(x[0])
+    )
+    result_val_per_energy_l = sorted(
+        result_val_per_energy_l[1:], key=lambda x: float(x[0])
+    )
+    result_val_per_energy_l_wh = sorted(
+        result_val_per_energy_l_wh[1:], key=lambda x: float(x[0])
+    )
+    if process == "Water Splitting":
+        result_val_efficiency = sorted(
+            result_val_efficiency[1:], key=lambda x: float(x[0]), reverse=True
+        )
+    else:
+        result_val_efficiency = result_val_efficiency[1:]
+    result_val_mol_prod_mol_red = sorted(
+        result_val_mol_prod_mol_red[1:], key=lambda x: float(x[0]), reverse=True
+    )
+    result_val_l_prod_kg_red = sorted(
+        result_val_l_prod_kg_red[1:], key=lambda x: float(x[0]), reverse=True
+    )
+    result_val_g_prod_kg_red = sorted(
+        result_val_g_prod_kg_red[1:], key=lambda x: float(x[0]), reverse=True
+    )
+    result_val_delta_redox = sorted(
+        result_val_delta_redox[1:], key=lambda x: float(x[0]), reverse=True
+    )
+    result_val_mass_change = sorted(
+        result_val_mass_change[1:], key=lambda x: float(x[0]), reverse=True
+    )
+
+    # create dictionary with results
+    dict_result = {
+        "kJ/mol redox material": result_val_ener_i,
+        "kJ/kg redox material": result_val_per_kg_redox,
+        "Wh/kg redox material": result_val_per_kg_wh_redox,
+        str("kJ/mol of " + prodstr_alt): result_val_per_kj_mol_prod,
+        str("kJ/L of " + prodstr): result_val_per_energy_l,
+        str("Wh/L of " + prodstr): result_val_per_energy_l_wh,
+        "Heat to fuel efficiency in % (only valid for Water Splitting)": result_val_efficiency,
+        str(
+            "mol " + prodstr_alt + " per mol redox material"
+        ): result_val_mol_prod_mol_red,
+        str("L " + prodstr + " per mol redox material"): result_val_l_prod_kg_red,
+        str("g " + prodstr + " per mol redox material"): result_val_g_prod_kg_red,
+        "Change in non-stoichiometry between T_ox and T_red": result_val_delta_redox,
+        "Mass change between T_ox and T_red": result_val_mass_change,
+    }
+
+    return dict_result
