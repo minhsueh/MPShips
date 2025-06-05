@@ -12,7 +12,7 @@ import sys
 import uuid
 
 
-class MPDistAIO(html.Div):
+class MPStatsAIO(html.Div):
     class ids:
         header = lambda aio:{
             "component": "MPDistAIO",
@@ -283,5 +283,5 @@ class MPDistAIO(html.Div):
 
 if __name__ == "__main__":
     app = Dash(__name__, suppress_callback_exceptions=True, use_pages=False)
-    app.layout = html.Div(MPDistAIO(aio="test"))
+    app.layout = html.Div(MPStatsAIO(aio="test"))
     app.run_server(debug=True)
