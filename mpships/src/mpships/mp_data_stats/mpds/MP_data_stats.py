@@ -11,6 +11,7 @@ from ptable_info import elements_dict, empty_element_count
 import sys
 import uuid
 from collections import defaultdict
+# import os
 
 from mp_api.client import MPRester
 # import crystal_toolkit.helpers.layouts as ctl
@@ -248,7 +249,7 @@ class MPDistAIO(html.Div):
             id=self.ids.whole_graph(aio_id)
             )
         
-
+        self.whole_graph = whole_graph
 
         super().__init__(children=[
             whole_graph
@@ -380,6 +381,7 @@ class MPDistAIO(html.Div):
 
 
 if __name__ == "__main__":
+    # prefix = os.getenv("DASH_REQUESTS_PATHNAME_PREFIX", "/mpds/")
     app = Dash(__name__, suppress_callback_exceptions=True, use_pages=False)
-    app.layout = html.Div(MPDistAIO(aio="test"))
-    app.run_server(debug=True)
+    app.layout = MPDistAIO
+    app.run_server(host='0.0.0.0', port=8051, debug=True)

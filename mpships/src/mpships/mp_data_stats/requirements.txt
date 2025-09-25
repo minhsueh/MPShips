@@ -2,3 +2,4 @@ pymatviz==0.11.0
 pandas==2.2.3
 plotly==5.24.1
 dash==2.18.1
+mp_api==0.45.9
